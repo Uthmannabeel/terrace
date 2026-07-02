@@ -1,0 +1,26 @@
+{
+  "name": "terrace",
+  "version": "0.1.0",
+  "description": "Peer-to-peer watch parties for football, with an on-device AI match companion. No servers, no accounts, no API keys.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.17"
+  },
+  "scripts": {
+    "dht": "node scripts/dht-bootstrap.js",
+    "test": "vitest run",
+    "verify:ai": "node scripts/verify-ai.js"
+  },
+  "overrides": {
+    "bare-zlib": "1.3.1"
+  },
+  "dependencies": {
+    "@qvac/sdk": "^0.14.1",
+    "hyperdht": "^6.32.0",
+    "hyperswarm": "^4.17.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.9"
+  }
+}

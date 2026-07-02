@@ -1,0 +1,9 @@
+# ECC harness is a local dev aid, not a build artifact (Windows AV locks on commit)
+.claude/
+
+node_modules/
+.env
+*.log
+dist/
+results/
+.tsbuildinfo
