@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terrace</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="ribbon" aria-label="Room status">
+      <div class="ribbon-left">
+        <span class="wordmark">TERRACE</span>
+        <span class="live-dot" id="live-dot" aria-hidden="true"></span>
+        <span class="room-code" id="room-code" title="Share this code — friends join with it">····-····</span>
+      </div>
+      <div class="ribbon-right">
+        <span class="stand" id="stand">IN THE STAND: 1</span>
+        <span class="clock" id="clock">00:00</span>
+        <span class="companion-lamp" id="companion-lamp" data-state="off">COMPANION</span>
+      </div>
+    </header>
+
+    <main class="feed" id="feed" aria-live="polite">
+      <div class="empty" id="empty">
+        <p class="empty-title">The stand is open.</p>
+        <p class="empty-hint">
+          Share the room code above — anyone who starts Terrace with it lands in
+          this room, directly peer-to-peer. No server. No accounts.
+        </p>
+      </div>
+    </main>
+
+    <form class="composer" id="composer">
+      <div class="mode-switch" role="radiogroup" aria-label="Message mode">
+        <button type="button" class="mode active" id="mode-chat" aria-pressed="true">Chat</button>
+        <button type="button" class="mode" id="mode-ask" aria-pressed="false">Ask companion</button>
+      </div>
+      <input
+        id="input"
+        autocomplete="off"
+        placeholder="Say it to the stand…"
+        maxlength="1000"
+        aria-label="Message"
+      />
+      <button type="submit" class="send" id="send-btn">Send</button>
+    </form>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

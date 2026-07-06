@@ -3,7 +3,7 @@
 // pointing peers at this node keeps everything on 127.0.0.1.
 import DHT from "hyperdht";
 
-const PORT = Number(process.env.DHT_PORT ?? 49737);
+const PORT = Number(process.env.DHT_PORT ?? process.argv[2] ?? 49737);
 
 const node = DHT.bootstrapper(PORT, "127.0.0.1");
 await node.ready();
