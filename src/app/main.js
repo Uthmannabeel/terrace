@@ -1,12 +1,13 @@
-// Terrace entry point. One process = one fan's seat in the stand:
-//   node src/app/main.js --room AB2C-DEF3 --name Marta --lang English
-// Flags: --room (omit to open a new room) --name --lang --port --no-ai
-// Env:   SWARM_BOOTSTRAP=1 to use the local dev DHT (npm run dht).
+// Terrace entry point. One process = one fan's seat.
+//   npm start                          → opens the landing page (create/join there)
+//   npm start -- --room AB2C-DEF3 ...  → auto-joins (used by scripts and demos)
+// Flags: --room --name --lang --nation --port --no-ai
+// Env:   SWARM_BOOTSTRAP=1 (+ DHT_PORT) to use the local dev DHT (npm run dht).
 
 import { Companion } from "../companion/companion.js";
 import { createQvacClient } from "../companion/qvacClient.js";
 import { makeChat, makePresence } from "../protocol/envelope.js";
-import { generateRoomCode } from "../room/code.js";
+import { generateRoomCode, normalizeRoomCode } from "../room/code.js";
 import { RoomSession } from "../room/roomSession.js";
 import { startUiServer } from "../ui/server.js";
 import { addEntry, contextLines, createFeed, findEntry } from "./roomFeed.js";
@@ -16,20 +17,21 @@ function arg(flag, fallback) {
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
 
-const roomCode = arg("--room", generateRoomCode());
-const name = arg("--name", "Fan").slice(0, 40);
-const lang = arg("--lang", "English");
 const port = Number(arg("--port", 3600));
-const nation = arg("--nation", "NG").toUpperCase().slice(0, 2);
 const aiEnabled = !process.argv.includes("--no-ai");
 const bootstrap = process.env.SWARM_BOOTSTRAP
   ? [{ host: "127.0.0.1", port: Number(process.env.DHT_PORT ?? 49737) }]
   : undefined;
 
+// Identity defaults — the landing page can override before joining.
+let name = arg("--name", "").slice(0, 40);
+let lang = arg("--lang", "English");
+let nation = arg("--nation", "NG").toUpperCase().slice(0, 2);
+
+let room = null;
 let feed = createFeed();
 let aiReady = false;
 
-const room = new RoomSession({ roomCode, bootstrap });
 const qvac = aiEnabled ? createQvacClient() : null;
 const companion = qvac
   ? new Companion({ runCompletion: qvac.runCompletion, loadClient: qvac.loadClient })
@@ -38,7 +40,13 @@ const companion = qvac
 const ui = await startUiServer({ port, onClientMessage: handleClient });
 
 function status() {
-  ui.send({ type: "status", peers: room.peerCount, aiReady, aiEnabled });
+  ui.send({
+    type: "status",
+    peers: room ? room.peerCount : 0,
+    aiReady,
+    aiEnabled,
+    inRoom: Boolean(room),
+  });
 }
 
 function pushChat({ name: from, text, self }) {
@@ -48,31 +56,64 @@ function pushChat({ name: from, text, self }) {
   return res.entry;
 }
 
-room.on("message", (message) => {
-  if (message.kind === "chat") pushChat({ name: message.name, text: message.text });
-  if (message.kind === "presence") ui.send({ type: "presence", ...message });
-});
-room.on("peer-join", (peerId) => {
-  console.log(`[terrace] peer joined (${peerId.slice(0, 8)}…)`);
-  room.broadcast(makePresence({ name, nation, isJoining: true }));
+async function joinRoom(code) {
+  room = new RoomSession({ roomCode: code, bootstrap });
+  room.on("message", (message) => {
+    if (message.kind === "chat") pushChat({ name: message.name, text: message.text });
+    if (message.kind === "presence") ui.send({ type: "presence", ...message });
+  });
+  room.on("peer-join", (peerId) => {
+    console.log(`[terrace] peer joined (${peerId.slice(0, 8)}…)`);
+    room.broadcast(makePresence({ name: name || "Fan", nation, isJoining: true }));
+    status();
+  });
+  room.on("peer-leave", (peerId) => {
+    console.log(`[terrace] peer left (${peerId.slice(0, 8)}…)`);
+    status();
+  });
+  await room.join();
+  console.log(`[terrace] joined room ${room.roomCode} as ${name || "Fan"}`);
+}
+
+function sendJoined(send) {
+  send({ type: "joined", room: room.roomCode, name, lang, aiEnabled });
   status();
-});
-room.on("peer-leave", (peerId) => {
-  console.log(`[terrace] peer left (${peerId.slice(0, 8)}…)`);
-  status();
-});
+  for (const entry of feed.entries) send({ type: "chat", ...entry });
+}
+
+function applyIdentity(data) {
+  if (typeof data.name === "string" && data.name.trim()) name = data.name.trim().slice(0, 40);
+  if (typeof data.lang === "string" && data.lang.trim()) lang = data.lang.trim().slice(0, 30);
+}
+
+async function handleCreateOrJoin(data, send) {
+  if (room) {
+    sendJoined(send);
+    return;
+  }
+  applyIdentity(data);
+  try {
+    const code = data.type === "create" ? generateRoomCode() : normalizeRoomCode(String(data.room ?? ""));
+    await joinRoom(code);
+    sendJoined(send);
+  } catch (err) {
+    room = null;
+    send({ type: "join-error", message: err.message });
+  }
+}
 
 function handleClient(data, send) {
   try {
     if (data.type === "hi") {
-      // page (re)connected: give it identity + current picture + history
-      send({ type: "hello", room: roomCode, name, lang, aiEnabled });
+      if (room) sendJoined(send);
+      else send({ type: "lobby", name, lang, aiEnabled });
       status();
-      for (const entry of feed.entries) send({ type: "chat", ...entry });
-    } else if (data.type === "send" && typeof data.text === "string" && data.text.trim()) {
+    } else if (data.type === "create" || data.type === "join") {
+      void handleCreateOrJoin(data, send);
+    } else if (data.type === "send" && room && typeof data.text === "string" && data.text.trim()) {
       const text = data.text.trim().slice(0, 1000);
-      room.broadcast(makeChat({ name, text }));
-      pushChat({ name, text, self: true });
+      room.broadcast(makeChat({ name: name || "Fan", text }));
+      pushChat({ name: name || "Fan", text, self: true });
     } else if (data.type === "ask" && companion) {
       const question = String(data.text ?? "").trim();
       if (!question) return;
@@ -93,13 +134,15 @@ function handleClient(data, send) {
   }
 }
 
-// Boot sequence: page is served immediately; the room joins next (chat works
-// as soon as a peer appears); the model warms up last, in the background.
-console.log(`[terrace] room ${roomCode} — UI on http://127.0.0.1:${ui.port}`);
+console.log(`[terrace] UI on http://127.0.0.1:${ui.port}`);
 
-await room.join();
-console.log(`[terrace] joined the swarm as ${name}`);
-status();
+// --room flag = script/demo mode: join immediately, page skips the landing.
+const roomFlag = arg("--room", null);
+if (roomFlag) {
+  if (!name) name = "Fan";
+  await joinRoom(roomFlag);
+  status();
+}
 
 if (companion) {
   companion
@@ -115,10 +158,10 @@ if (companion) {
     });
 }
 
-// Late-joining browser tabs need the current picture again.
+// Late-joining browser tabs get a fresh picture periodically.
 setInterval(status, 5000);
 
 process.on("SIGINT", async () => {
-  await room.leave();
+  if (room) await room.leave();
   process.exit(0);
 });

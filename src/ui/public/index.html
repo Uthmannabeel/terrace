@@ -4,46 +4,131 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Terrace</title>
+    <link rel="preload" href="/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/martian-mono-var.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="ribbon" aria-label="Room status">
-      <div class="ribbon-left">
+    <!-- ══ LANDING ═══════════════════════════════════════════ -->
+    <section id="lobby" class="lobby" hidden>
+      <header class="lobby-top">
         <span class="wordmark">TERRACE</span>
-        <span class="live-dot" id="live-dot" aria-hidden="true"></span>
-        <span class="room-code" id="room-code" title="Share this code — friends join with it">····-····</span>
-      </div>
-      <div class="ribbon-right">
-        <span class="stand" id="stand">IN THE STAND: 1</span>
-        <span class="clock" id="clock">00:00</span>
-        <span class="companion-lamp" id="companion-lamp" data-state="off">COMPANION</span>
-      </div>
-    </header>
+        <span class="lobby-top-note">BUILT ON PEARS + QVAC</span>
+      </header>
 
-    <main class="feed" id="feed" aria-live="polite">
-      <div class="empty" id="empty">
-        <p class="empty-title">The stand is open.</p>
-        <p class="empty-hint">
-          Share the room code above — anyone who starts Terrace with it lands in
-          this room, directly peer-to-peer. No server. No accounts.
-        </p>
-      </div>
-    </main>
+      <div class="lobby-main">
+        <div class="lobby-pitch">
+          <h1 class="hero">
+            THE STAND IS<br />WHEREVER<br />YOU ARE<span class="hero-dot">.</span>
+          </h1>
+          <p class="hero-sub">
+            Watch-party rooms for football that run straight between your devices
+            — no server, no accounts, nothing to sign up for. A match companion
+            answers your questions and translates the stand, from a model that
+            lives on your machine.
+          </p>
+          <p class="hero-privacy">
+            No one else can read the room. There is no one in the middle.
+          </p>
+        </div>
 
-    <form class="composer" id="composer">
-      <div class="mode-switch" role="radiogroup" aria-label="Message mode">
-        <button type="button" class="mode active" id="mode-chat" aria-pressed="true">Chat</button>
-        <button type="button" class="mode" id="mode-ask" aria-pressed="false">Ask companion</button>
+        <div class="lobby-card">
+          <label class="field">
+            <span class="field-label">YOUR NAME</span>
+            <input id="lobby-name" maxlength="40" autocomplete="off" placeholder="e.g. Nabeel" />
+          </label>
+          <label class="field">
+            <span class="field-label">TRANSLATE THE STAND INTO</span>
+            <select id="lobby-lang">
+              <option>English</option>
+              <option>Español</option>
+              <option>Português</option>
+              <option>Français</option>
+              <option>Deutsch</option>
+              <option>Italiano</option>
+              <option>العربية</option>
+              <option>日本語</option>
+              <option>Yorùbá</option>
+              <option>Hausa</option>
+            </select>
+          </label>
+
+          <button id="create-btn" class="btn-primary" type="button">START A ROOM</button>
+
+          <div class="or-rule"><span>OR JOIN ONE</span></div>
+
+          <form id="join-form" class="join-row">
+            <input
+              id="join-code"
+              class="code-input"
+              maxlength="9"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="AB2C-DEF3"
+              aria-label="Room code"
+            />
+            <button class="btn-secondary" type="submit">JOIN</button>
+          </form>
+
+          <p class="card-note" id="lobby-note">
+            A room is just a code. Shout it, text it, put it in the group chat —
+            whoever starts Terrace with it is in.
+          </p>
+        </div>
       </div>
-      <input
-        id="input"
-        autocomplete="off"
-        placeholder="Say it to the stand…"
-        maxlength="1000"
-        aria-label="Message"
-      />
-      <button type="submit" class="send" id="send-btn">Send</button>
-    </form>
+
+      <footer class="lobby-foot">
+        <span>ZERO INFRASTRUCTURE — ROOMS RUN DEVICE TO DEVICE</span>
+        <span class="foot-sep">/</span>
+        <span>THE COMPANION IS A MODEL ON YOUR MACHINE, NOT AN API</span>
+        <span class="foot-sep">/</span>
+        <span>WORKS WHERE MATCH-DAY NETWORKS DON'T</span>
+      </footer>
+    </section>
+
+    <!-- ══ ROOM ═════════════════════════════════════════════ -->
+    <section id="room" class="room" hidden>
+      <header class="bug" aria-label="Room status">
+        <div class="bug-left">
+          <span class="wordmark">TERRACE</span>
+          <span class="live-chip" id="live-chip" hidden>LIVE</span>
+          <button class="room-code" id="room-code" type="button" title="Click to copy — friends join with this code">
+            ····-····
+          </button>
+        </div>
+        <div class="bug-right">
+          <span class="stand" id="stand">IN THE STAND · 1</span>
+          <span class="clock" id="clock">00:00</span>
+          <span class="companion-lamp" id="companion-lamp" data-state="off">COMPANION</span>
+        </div>
+      </header>
+
+      <main class="feed" id="feed" aria-live="polite">
+        <div class="empty" id="empty">
+          <p class="empty-kicker">ROOM OPEN</p>
+          <p class="empty-title">Waiting for the stand to fill.</p>
+          <p class="empty-hint">
+            Share the code above. Anyone who starts Terrace and joins with it
+            connects straight to you — device to device, nothing in between.
+          </p>
+        </div>
+      </main>
+
+      <form class="composer" id="composer">
+        <div class="mode-switch" role="radiogroup" aria-label="Message mode">
+          <button type="button" class="mode active" id="mode-chat" aria-pressed="true">CHAT</button>
+          <button type="button" class="mode" id="mode-ask" aria-pressed="false">ASK</button>
+        </div>
+        <input
+          id="input"
+          autocomplete="off"
+          placeholder="Say it to the stand…"
+          maxlength="1000"
+          aria-label="Message"
+        />
+        <button type="submit" class="btn-primary send" id="send-btn">SEND</button>
+      </form>
+    </section>
 
     <script src="/app.js"></script>
   </body>

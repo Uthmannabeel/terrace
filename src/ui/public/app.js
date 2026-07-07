@@ -1,17 +1,40 @@
-// Terrace page logic. Everything renders through textContent — peer text is
-// hostile input and must never become markup.
+// Terrace page logic. Two views: lobby (create/join) and room. Everything
+// renders via textContent — peer text is hostile input, never markup.
 
 const $ = (id) => document.getElementById(id);
 const feedEl = $("feed");
-const emptyEl = $("empty");
-const input = $("input");
 
 let mode = "chat";
 let aiReady = false;
-let joinedAt = Date.now();
+let inRoom = false;
+let joinedAt = null;
+let lastAuthor = null;
 
-// ── clock ribbon ──────────────────────────────────────────────
+// fixed username palette (Twitch-style): assigned by name hash, never random
+const NAME_COLORS = ["#d6ff3f", "#5ec8f0", "#f0a35e", "#e57fe5", "#7fe5a3", "#f0e35e", "#f08a8a", "#9d8af0"];
+function nameColor(name) {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return NAME_COLORS[h % NAME_COLORS.length];
+}
+
+// ── views ─────────────────────────────────────────────────────
+function showLobby() {
+  $("lobby").hidden = false;
+  $("room").hidden = true;
+}
+function showRoom(code) {
+  $("lobby").hidden = true;
+  $("room").hidden = false;
+  $("room-code").textContent = code;
+  document.title = `Terrace — ${code}`;
+  if (!joinedAt) joinedAt = Date.now();
+  $("input").focus();
+}
+
+// ── clock ─────────────────────────────────────────────────────
 setInterval(() => {
+  if (!joinedAt) return;
   const secs = Math.floor((Date.now() - joinedAt) / 1000);
   const mm = String(Math.floor(secs / 60)).padStart(2, "0");
   const ss = String(secs % 60).padStart(2, "0");
@@ -19,12 +42,12 @@ setInterval(() => {
 }, 1000);
 
 $("room-code").addEventListener("click", () => {
-  navigator.clipboard?.writeText($("room-code").textContent).then(() => {
-    notice("room code copied");
+  navigator.clipboard?.writeText($("room-code").textContent.trim()).then(() => {
+    notice("ROOM CODE COPIED");
   });
 });
 
-// ── websocket to the local app process ───────────────────────
+// ── websocket to the local app process ────────────────────────
 let ws;
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws`);
@@ -45,13 +68,22 @@ connect();
 const seenChatIds = new Set();
 
 function handle(ev) {
-  if (ev.type === "hello") {
-    $("room-code").textContent = ev.room;
-    document.title = `Terrace — ${ev.room}`;
+  if (ev.type === "lobby") {
+    if (ev.name) $("lobby-name").value = ev.name;
+    showLobby();
+  } else if (ev.type === "joined") {
+    inRoom = true;
+    showRoom(ev.room);
     if (!ev.aiEnabled) $("companion-lamp").textContent = "COMPANION OFF";
+  } else if (ev.type === "join-error") {
+    setBusy(false);
+    const note = $("lobby-note");
+    note.textContent = ev.message;
+    note.classList.add("error");
   } else if (ev.type === "status") {
-    $("stand").textContent = `IN THE STAND: ${ev.peers + 1}`;
-    $("live-dot").classList.toggle("on", ev.peers > 0);
+    if (!inRoom) return;
+    $("stand").textContent = `IN THE STAND · ${ev.peers + 1}`;
+    $("live-chip").hidden = ev.peers === 0;
     aiReady = Boolean(ev.aiReady);
     const lamp = $("companion-lamp");
     if (ev.aiEnabled) lamp.dataset.state = aiReady ? "ready" : "warming";
@@ -61,35 +93,65 @@ function handle(ev) {
     seenChatIds.add(ev.id);
     renderChat(ev);
   } else if (ev.type === "presence" && ev.isJoining) {
-    notice(`${ev.name} (${ev.nation}) is in the stand`);
+    notice(`${ev.name} (${ev.nation}) IS IN THE STAND`);
+    lastAuthor = null;
   } else if (ev.type === "companion") {
     ev.kind === "translation" ? renderTranslation(ev) : renderAnswer(ev);
   } else if (ev.type === "companion-error") {
-    notice(ev.message, true);
+    notice(ev.message.toUpperCase(), true);
   }
 }
 
+// ── lobby actions ─────────────────────────────────────────────
+function identity() {
+  return {
+    name: $("lobby-name").value.trim() || "Fan",
+    lang: $("lobby-lang").value,
+  };
+}
+function setBusy(busy) {
+  $("create-btn").disabled = busy;
+  $("create-btn").textContent = busy ? "OPENING…" : "START A ROOM";
+}
+$("create-btn").addEventListener("click", () => {
+  setBusy(true);
+  ws.send(JSON.stringify({ type: "create", ...identity() }));
+});
+$("join-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const code = $("join-code").value.trim();
+  if (!code) return;
+  ws.send(JSON.stringify({ type: "join", room: code, ...identity() }));
+});
+
 // ── rendering (textContent only) ──────────────────────────────
 function showFeed() {
-  if (emptyEl.style.display !== "none") emptyEl.style.display = "none";
+  const empty = $("empty");
+  if (empty && !empty.hidden) empty.hidden = true;
 }
-
 function stick() {
   feedEl.scrollTop = feedEl.scrollHeight;
 }
 
 function renderChat({ id, name, text, self }) {
   showFeed();
+  const grouped = lastAuthor === name;
+  lastAuthor = name;
+
   const msg = document.createElement("div");
-  msg.className = self ? "msg self" : "msg";
+  msg.className = grouped ? "msg grouped" : "msg";
   msg.dataset.id = id;
 
-  const head = document.createElement("div");
-  head.className = "msg-head";
   const who = document.createElement("span");
   who.className = "msg-name";
   who.textContent = name;
-  head.appendChild(who);
+  who.style.color = self ? "var(--ink)" : nameColor(name);
+
+  const body = document.createElement("span");
+  body.className = "msg-text";
+  body.textContent = text;
+
+  msg.append(who, body);
 
   if (!self) {
     const btn = document.createElement("button");
@@ -102,14 +164,9 @@ function renderChat({ id, name, text, self }) {
       btn.disabled = true;
       ws.send(JSON.stringify({ type: "translate", id }));
     });
-    head.appendChild(btn);
+    msg.appendChild(btn);
   }
 
-  const body = document.createElement("div");
-  body.className = "msg-text";
-  body.textContent = text;
-
-  msg.append(head, body);
   feedEl.appendChild(msg);
   stick();
 }
@@ -118,11 +175,11 @@ function renderTranslation({ forId, text }) {
   const msg = feedEl.querySelector(`.msg[data-id="${CSS.escape(String(forId))}"]`);
   if (!msg) return;
   msg.querySelector(".translate-btn")?.remove();
-  let t = msg.querySelector(".msg-translation");
-  if (!t) {
+  let t = msg.nextElementSibling;
+  if (!t || !t.classList.contains("msg-translation")) {
     t = document.createElement("div");
     t.className = "msg-translation";
-    msg.appendChild(t);
+    msg.after(t);
   }
   t.textContent = text;
   stick();
@@ -130,12 +187,13 @@ function renderTranslation({ forId, text }) {
 
 function renderAnswer({ question, text }) {
   showFeed();
+  lastAuthor = null;
   const block = document.createElement("div");
   block.className = "companion-block";
 
   const tag = document.createElement("div");
   tag.className = "companion-tag";
-  tag.textContent = "COMPANION";
+  tag.textContent = "COMPANION · ON THIS DEVICE";
   const q = document.createElement("div");
   q.className = "companion-q";
   q.textContent = question;
@@ -150,6 +208,7 @@ function renderAnswer({ question, text }) {
 
 function notice(text, isError = false) {
   showFeed();
+  lastAuthor = null;
   const n = document.createElement("div");
   n.className = isError ? "notice error" : "notice";
   n.textContent = text;
@@ -164,20 +223,21 @@ function setMode(next) {
   $("mode-ask").classList.toggle("active", next === "ask");
   $("mode-chat").setAttribute("aria-pressed", String(next === "chat"));
   $("mode-ask").setAttribute("aria-pressed", String(next === "ask"));
-  input.placeholder = next === "chat" ? "Say it to the stand…" : "Ask the companion anything about the game…";
-  input.focus();
+  $("input").placeholder =
+    next === "chat" ? "Say it to the stand…" : "Ask about the match — answered on this device…";
+  $("input").focus();
 }
 $("mode-chat").addEventListener("click", () => setMode("chat"));
 $("mode-ask").addEventListener("click", () => setMode("ask"));
 
 $("composer").addEventListener("submit", (e) => {
   e.preventDefault();
-  const text = input.value.trim();
+  const text = $("input").value.trim();
   if (!text || ws.readyState !== WebSocket.OPEN) return;
   if (mode === "ask" && !aiReady) {
-    notice("the companion is still warming up", true);
+    notice("THE COMPANION IS STILL WARMING UP", true);
     return;
   }
   ws.send(JSON.stringify({ type: mode === "chat" ? "send" : "ask", text }));
-  input.value = "";
+  $("input").value = "";
 });

@@ -15,9 +15,16 @@ const CONTENT_TYPES = {
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".woff2": "font/woff2",
 };
 
-const FILES = new Set(["/index.html", "/app.js", "/styles.css"]);
+const FILES = new Set([
+  "/index.html",
+  "/app.js",
+  "/styles.css",
+  "/fonts/archivo-var.woff2",
+  "/fonts/martian-mono-var.woff2",
+]);
 
 export async function startUiServer({ port, onClientMessage }) {
   const server = http.createServer(async (req, res) => {

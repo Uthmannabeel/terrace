@@ -51,7 +51,7 @@ try {
     ["--room", ROOM, "--name", "Alice", "--port", "3651", "--no-ai"], env);
   const b = start(path.join(ROOT, "src", "app", "main.js"),
     ["--room", ROOM, "--name", "Bob", "--port", "3652", "--no-ai"], env);
-  await Promise.all([waitForLine(a, "joined the swarm"), waitForLine(b, "joined the swarm")]);
+  await Promise.all([waitForLine(a, "joined room"), waitForLine(b, "joined room")]);
   console.log("[smoke] both instances up");
 
   // static page serves
