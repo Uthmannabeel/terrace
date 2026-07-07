@@ -28,6 +28,17 @@ describe("createLineSplitter", () => {
     expect(lines).toEqual(["x"]);
   });
 
+  test("reassembles a multi-byte character split across chunks", () => {
+    const lines = [];
+    const push = createLineSplitter((l) => lines.push(l));
+
+    const bytes = Buffer.from("¡Golazo!\n", "utf8"); // "¡" is 2 bytes
+    push(bytes.subarray(0, 1));
+    push(bytes.subarray(1));
+
+    expect(lines).toEqual(["¡Golazo!"]);
+  });
+
   test("drops the buffer and signals overflow when a peer never sends newline", () => {
     const lines = [];
     const onOverflow = vi.fn();

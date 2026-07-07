@@ -27,6 +27,11 @@ const bootstrap = process.env.SWARM_BOOTSTRAP
 let name = arg("--name", "").slice(0, 40);
 let lang = arg("--lang", "English");
 let nation = arg("--nation", "NG").toUpperCase().slice(0, 2);
+// An invalid --nation would make makePresence throw inside the peer-join
+// handler and crash the process the moment a peer connects — fall back instead.
+if (!/^[A-Z]{2}$/.test(nation)) nation = "NG";
+
+const PRESENCE_DELAY_MS = 300;
 
 let room = null;
 let feed = createFeed();
@@ -64,7 +69,18 @@ async function joinRoom(code) {
   });
   room.on("peer-join", (peerId) => {
     console.log(`[terrace] peer joined (${peerId.slice(0, 8)}…)`);
-    room.broadcast(makePresence({ name: name || "Fan", nation, isJoining: true }));
+    // Greet only the newcomer, and not on a freshly-opened stream — an
+    // immediate write can be dropped before the stream is fully up.
+    const session = room;
+    setTimeout(() => {
+      try {
+        if (session === room) {
+          session.sendTo(peerId, makePresence({ name: name || "Fan", nation, isJoining: true }));
+        }
+      } catch {
+        // peer already gone — a lost hello is fine
+      }
+    }, PRESENCE_DELAY_MS);
     status();
   });
   room.on("peer-leave", (peerId) => {
@@ -97,7 +113,10 @@ async function handleCreateOrJoin(data, send) {
     await joinRoom(code);
     sendJoined(send);
   } catch (err) {
+    // Tear down the half-started session or each lobby retry leaks a swarm.
+    const failed = room;
     room = null;
+    if (failed) failed.leave().catch(() => {});
     send({ type: "join-error", message: err.message });
   }
 }
@@ -127,7 +146,7 @@ function handleClient(data, send) {
       companion
         .translate(entry.text, lang)
         .then((text) => send({ type: "companion", kind: "translation", forId: entry.id, text }))
-        .catch((err) => send({ type: "companion-error", message: err.message }));
+        .catch((err) => send({ type: "companion-error", forId: entry.id, message: err.message }));
     }
   } catch (err) {
     send({ type: "companion-error", message: err.message });

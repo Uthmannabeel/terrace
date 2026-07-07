@@ -59,6 +59,8 @@ npm run verify:ai     # live QVAC check (translate + explain)
 
 ## How it's built
 
+Full picture with diagram and trust boundaries: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ```
 src/protocol/    versioned wire format — every peer frame validated, capped, allowlisted
 src/room/        room codes → Hyperswarm topics; RoomSession (join/broadcast/events)

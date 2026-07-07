@@ -42,6 +42,13 @@ export class RoomSession extends EventEmitter {
     }
   }
 
+  // Send to one peer only (e.g. greeting a newcomer without re-announcing
+  // to the whole stand). No-op if the peer already left.
+  sendTo(peerId, message) {
+    const socket = this.#peers.get(peerId);
+    if (socket) socket.write(encodeMessage(message));
+  }
+
   async leave() {
     for (const socket of this.#peers.values()) socket.destroy();
     this.#peers.clear();

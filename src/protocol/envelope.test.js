@@ -108,6 +108,15 @@ describe("parseMessage — hostile peer input", () => {
     expect(parsed.error).toMatch(/name/);
   });
 
+  test("rejects kinds inherited from Object.prototype", () => {
+    for (const kind of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+      const parsed = parseMessage(
+        JSON.stringify({ v: PROTOCOL_VERSION, kind, name: "a", text: "hi", evil: "yes" }) + "\n",
+      );
+      expect(parsed.ok, `kind ${kind} must be rejected`).toBe(false);
+    }
+  });
+
   test("strips unexpected extra fields instead of carrying them", () => {
     const parsed = parseMessage(
       JSON.stringify({

@@ -99,4 +99,24 @@ describe("Companion jobs", () => {
     const { companion } = await ready();
     await expect(companion.translate("x".repeat(5000), "English")).rejects.toThrow(/long/i);
   });
+
+  test("a hung generation times out and the lane keeps moving", async () => {
+    let call = 0;
+    const companion = new Companion({
+      runCompletion: async () => {
+        call += 1;
+        if (call === 1) return new Promise(() => {}); // first job never settles
+        return "second answer";
+      },
+      loadClient: async () => {},
+      timeoutMs: 50,
+    });
+    await companion.warmup();
+
+    const first = companion.explain("hangs");
+    const second = companion.explain("works");
+
+    await expect(first).rejects.toThrow(/took too long/i);
+    await expect(second).resolves.toBe("second answer");
+  });
 });

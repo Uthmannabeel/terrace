@@ -66,6 +66,16 @@ function connect() {
 connect();
 
 const seenChatIds = new Set();
+const MAX_SEEN_IDS = 600;
+
+function rememberChatId(id) {
+  seenChatIds.add(id);
+  // ids only grow and the app replays at most its last 200 — old ids are safe to forget
+  if (seenChatIds.size > MAX_SEEN_IDS) {
+    const oldest = seenChatIds.values();
+    for (let i = 0; i < MAX_SEEN_IDS / 2; i += 1) seenChatIds.delete(oldest.next().value);
+  }
+}
 
 function handle(ev) {
   if (ev.type === "lobby") {
@@ -87,10 +97,12 @@ function handle(ev) {
     aiReady = Boolean(ev.aiReady);
     const lamp = $("companion-lamp");
     if (ev.aiEnabled) lamp.dataset.state = aiReady ? "ready" : "warming";
-    document.querySelectorAll(".translate-btn").forEach((b) => (b.disabled = !aiReady));
+    document.querySelectorAll(".translate-btn").forEach((b) => {
+      if (b.textContent !== "…") b.disabled = !aiReady; // "…" = request in flight
+    });
   } else if (ev.type === "chat") {
     if (seenChatIds.has(ev.id)) return;
-    seenChatIds.add(ev.id);
+    rememberChatId(ev.id);
     renderChat(ev);
   } else if (ev.type === "presence" && ev.isJoining) {
     notice(`${ev.name} (${ev.nation}) IS IN THE STAND`);
@@ -98,6 +110,7 @@ function handle(ev) {
   } else if (ev.type === "companion") {
     ev.kind === "translation" ? renderTranslation(ev) : renderAnswer(ev);
   } else if (ev.type === "companion-error") {
+    if (ev.forId != null) restoreTranslateBtn(ev.forId);
     notice(ev.message.toUpperCase(), true);
   }
 }
@@ -113,7 +126,16 @@ function setBusy(busy) {
   $("create-btn").disabled = busy;
   $("create-btn").textContent = busy ? "OPENING…" : "START A ROOM";
 }
+function lobbyError(text) {
+  const note = $("lobby-note");
+  note.textContent = text;
+  note.classList.add("error");
+}
 $("create-btn").addEventListener("click", () => {
+  if (ws.readyState !== WebSocket.OPEN) {
+    lobbyError("STILL CONNECTING — TRY AGAIN");
+    return;
+  }
   setBusy(true);
   ws.send(JSON.stringify({ type: "create", ...identity() }));
 });
@@ -121,6 +143,10 @@ $("join-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const code = $("join-code").value.trim();
   if (!code) return;
+  if (ws.readyState !== WebSocket.OPEN) {
+    lobbyError("STILL CONNECTING — TRY AGAIN");
+    return;
+  }
   ws.send(JSON.stringify({ type: "join", room: code, ...identity() }));
 });
 
@@ -129,7 +155,10 @@ function showFeed() {
   const empty = $("empty");
   if (empty && !empty.hidden) empty.hidden = true;
 }
+const MAX_RENDERED = 300;
 function stick() {
+  // a peer flooding valid messages must not grow the DOM without bound
+  while (feedEl.children.length > MAX_RENDERED) feedEl.removeChild(feedEl.firstElementChild);
   feedEl.scrollTop = feedEl.scrollHeight;
 }
 
@@ -169,6 +198,14 @@ function renderChat({ id, name, text, self }) {
 
   feedEl.appendChild(msg);
   stick();
+}
+
+function restoreTranslateBtn(forId) {
+  const btn = feedEl.querySelector(`.msg[data-id="${CSS.escape(String(forId))}"] .translate-btn`);
+  if (btn) {
+    btn.textContent = "TRANSLATE";
+    btn.disabled = !aiReady;
+  }
 }
 
 function renderTranslation({ forId, text }) {

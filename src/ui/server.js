@@ -47,7 +47,15 @@ export async function startUiServer({ port, onClientMessage }) {
     }
   });
 
-  const wss = new WebSocketServer({ server, path: "/ws" });
+  // WebSockets skip the same-origin policy: without this check any web page
+  // open in the user's browser could drive the app via ws://127.0.0.1.
+  // Non-browser clients (scripts, tests) send no Origin header and are allowed.
+  const wss = new WebSocketServer({
+    server,
+    path: "/ws",
+    verifyClient: ({ origin, req }) =>
+      origin === undefined || origin === `http://${req.headers.host}`,
+  });
   const clients = new Set();
 
   wss.on("connection", (socket) => {

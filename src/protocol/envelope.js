@@ -69,7 +69,9 @@ export function parseMessage(raw) {
     return { ok: false, error: `unsupported protocol version: ${data.v}` };
   }
 
-  const validate = VALIDATORS[data.kind];
+  // Own-property lookup only: kind:"constructor" etc. must not resolve
+  // through Object.prototype and bypass the rebuild.
+  const validate = Object.hasOwn(VALIDATORS, data.kind) ? VALIDATORS[data.kind] : undefined;
   if (!validate) {
     return { ok: false, error: `unknown kind: ${String(data.kind)}` };
   }

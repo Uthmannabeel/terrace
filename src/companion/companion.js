@@ -7,17 +7,20 @@ import { buildExplainPrompt, buildTranslatePrompt } from "./prompts.js";
 
 export const MAX_QUEUE = 4;
 export const MAX_INPUT_LENGTH = 1500;
+export const COMPLETION_TIMEOUT_MS = 60_000;
 
 export class Companion {
   #runCompletion;
   #loadClient;
+  #timeoutMs;
   #ready = false;
   #queue = [];
   #running = false;
 
-  constructor({ runCompletion, loadClient }) {
+  constructor({ runCompletion, loadClient, timeoutMs = COMPLETION_TIMEOUT_MS }) {
     this.#runCompletion = runCompletion;
     this.#loadClient = loadClient;
+    this.#timeoutMs = timeoutMs;
   }
 
   get isReady() {
@@ -73,7 +76,7 @@ export class Companion {
       while (this.#queue.length > 0) {
         const job = this.#queue.shift();
         try {
-          job.resolve(await this.#runCompletion(job.history));
+          job.resolve(await this.#withTimeout(this.#runCompletion(job.history)));
         } catch (err) {
           job.reject(err);
         }
@@ -81,5 +84,26 @@ export class Companion {
     } finally {
       this.#running = false;
     }
+  }
+
+  // A stalled generation must not wedge the single lane forever — time the
+  // job out so the drain loop moves on and later asks can still run.
+  #withTimeout(promise) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("the companion took too long — try again")),
+        this.#timeoutMs,
+      );
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
   }
 }
