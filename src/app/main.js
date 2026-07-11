@@ -34,7 +34,7 @@ if (!/^[A-Z]{2}$/.test(nation)) nation = "NG";
 const PRESENCE_DELAY_MS = 300;
 
 let room = null;
-let feed = createFeed();
+let feed = createFeed(Date.now()); // epoch seed: ids survive restarts (see roomFeed.js)
 let aiReady = false;
 
 const qvac = aiEnabled ? createQvacClient() : null;
@@ -141,8 +141,14 @@ function handleClient(data, send) {
         .then((text) => send({ type: "companion", kind: "answer", question, text }))
         .catch((err) => send({ type: "companion-error", message: err.message }));
     } else if (data.type === "translate" && companion) {
-      const entry = findEntry(feed, Number(data.id));
-      if (!entry) return;
+      const id = Number(data.id);
+      const entry = findEntry(feed, id);
+      if (!entry) {
+        // message aged out of the feed (>200 ago) but its button still exists
+        // in the longer-lived DOM — release it instead of leaving it stuck on "…"
+        send({ type: "companion-error", forId: id, message: "that message is no longer available" });
+        return;
+      }
       companion
         .translate(entry.text, lang)
         .then((text) => send({ type: "companion", kind: "translation", forId: entry.id, text }))

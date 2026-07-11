@@ -79,6 +79,11 @@ function rememberChatId(id) {
 
 function handle(ev) {
   if (ev.type === "lobby") {
+    // returning to the lobby (e.g. the app restarted under us): clear room state
+    // so the create button, clock, and status guard don't stay stuck from before
+    setBusy(false);
+    inRoom = false;
+    joinedAt = null;
     if (ev.name) $("lobby-name").value = ev.name;
     showLobby();
   } else if (ev.type === "joined") {

@@ -5,8 +5,11 @@
 const MAX_FEED = 200;
 const CONTEXT_LINES = 8;
 
-export function createFeed() {
-  return { nextId: 1, entries: [] };
+// startId lets the app seed ids from a wall-clock epoch so they stay strictly
+// increasing across process restarts — a reconnecting browser tab that still
+// remembers old ids can never mistake a fresh message for a duplicate.
+export function createFeed(startId = 1) {
+  return { nextId: startId, entries: [] };
 }
 
 export function addEntry(feed, { name, text, self }) {

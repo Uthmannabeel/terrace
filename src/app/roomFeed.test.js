@@ -13,6 +13,12 @@ describe("roomFeed", () => {
     expect(feed2.entries).toHaveLength(2);
   });
 
+  test("createFeed seeds ids from startId so they stay unique across restarts", () => {
+    const { feed, entry } = addEntry(createFeed(1_700_000), { name: "A", text: "hi" });
+    expect(entry.id).toBe(1_700_000);
+    expect(feed.nextId).toBe(1_700_001);
+  });
+
   test("findEntry retrieves by id", () => {
     const { feed } = addEntry(createFeed(), { name: "A", text: "hello" });
     expect(findEntry(feed, 1)?.text).toBe("hello");

@@ -55,8 +55,9 @@ dropped silently; hostile input must never take the room down.
 The room never sees companion traffic — translation and questions are private to
 the seat that asked.
 
-**Presence:** on `peer-join`, each seat broadcasts a presence envelope
-(name + 2-letter nation) so the stand can show who's in.
+**Presence:** on `peer-join`, a seat greets the newcomer directly (a targeted
+`sendTo`, not a broadcast) with a presence envelope (name + 2-letter nation) so
+the stand can show who's in without re-announcing to everyone already there.
 
 ## Trust boundaries
 
@@ -78,7 +79,7 @@ the seat that asked.
 - **ndjson over the raw duplex stream.** Simplest framing that survives partial
   chunks; a versioned envelope leaves room to grow (match events, reactions)
   without breaking old peers.
-- **Injectable QVAC client.** 41 tests run without the SDK; `npm run verify:ai`
+- **Injectable QVAC client.** 44 tests run without the SDK; `npm run verify:ai`
   proves the real model path.
 
 ## Offline / restricted-network story

@@ -4,6 +4,10 @@
   "description": "Peer-to-peer watch parties for football, with an on-device AI match companion. No servers, no accounts, no API keys.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Uthmannabeel/terrace"
+  },
   "engines": {
     "node": ">=22.17"
   },
@@ -12,6 +16,8 @@
     "dht": "node scripts/dht-bootstrap.js",
     "test": "vitest run",
     "verify:ai": "node scripts/verify-ai.js",
+    "verify:app-ai": "node scripts/verify-app-ai.js",
+    "verify:lobby": "node scripts/verify-lobby.js",
     "smoke": "node scripts/smoke-e2e.js"
   },
   "overrides": {

@@ -7,3 +7,6 @@ node_modules/
 dist/
 results/
 .tsbuildinfo
+
+# Personal print-outs (markdown versions are tracked)
+docs/*.pdf

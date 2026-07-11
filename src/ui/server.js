@@ -49,12 +49,18 @@ export async function startUiServer({ port, onClientMessage }) {
 
   // WebSockets skip the same-origin policy: without this check any web page
   // open in the user's browser could drive the app via ws://127.0.0.1.
-  // Non-browser clients (scripts, tests) send no Origin header and are allowed.
+  // The Host header is checked against a fixed loopback allowlist (not trusted
+  // as-is) so a DNS-rebinding page pointing its own domain at 127.0.0.1 can't
+  // satisfy the origin match. Non-browser clients send no Origin and are allowed.
+  const allowedHosts = new Set(); // filled once the real port is known, below
   const wss = new WebSocketServer({
     server,
     path: "/ws",
-    verifyClient: ({ origin, req }) =>
-      origin === undefined || origin === `http://${req.headers.host}`,
+    verifyClient: ({ origin, req }) => {
+      const host = req.headers.host;
+      if (!allowedHosts.has(host)) return false;
+      return origin === undefined || origin === `http://${host}`;
+    },
   });
   const clients = new Set();
 
@@ -84,5 +90,8 @@ export async function startUiServer({ port, onClientMessage }) {
     server.listen(port, "127.0.0.1", resolve);
   });
 
-  return { send, port: server.address().port, close: () => server.close() };
+  const boundPort = server.address().port;
+  for (const host of ["127.0.0.1", "localhost", "[::1]"]) allowedHosts.add(`${host}:${boundPort}`);
+
+  return { send, port: boundPort, close: () => server.close() };
 }
