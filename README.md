@@ -12,7 +12,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-c8f04c" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/node-%E2%89%A5%2022.17-16181a" alt="Node >= 22.17">
-  <img src="https://img.shields.io/badge/tests-44%20passing-c8f04c" alt="44 tests passing">
+  <img src="https://img.shields.io/badge/tests-47%20passing-c8f04c" alt="47 tests passing">
   <img src="https://img.shields.io/badge/AI-100%25%20on--device-16181a" alt="100% on-device AI">
 </p>
 
@@ -90,7 +90,7 @@ room code simply find each other.
 
 | Command | What it proves |
 |---|---|
-| `npm test` | 44 tests: protocol, rooms (real sockets), companion, feed |
+| `npm test` | 47 tests: protocol, rooms (real sockets), companion, feed |
 | `npm run smoke` | headless end-to-end: page → P2P → page, two live instances |
 | `npm run verify:ai` | the real QVAC model translating and explaining |
 

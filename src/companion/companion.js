@@ -75,8 +75,9 @@ export class Companion {
     try {
       while (this.#queue.length > 0) {
         const job = this.#queue.shift();
+        const controller = new AbortController();
         try {
-          job.resolve(await this.#withTimeout(this.#runCompletion(job.history)));
+          job.resolve(await this.#withTimeout(this.#runCompletion(job.history, controller.signal), controller));
         } catch (err) {
           job.reject(err);
         }
@@ -86,14 +87,16 @@ export class Companion {
     }
   }
 
-  // A stalled generation must not wedge the single lane forever — time the
-  // job out so the drain loop moves on and later asks can still run.
-  #withTimeout(promise) {
+  // A stalled generation must not wedge the single lane forever — time the job
+  // out so the drain loop moves on, and abort the signal so the client stops
+  // consuming (and, if the SDK honours it, stops generating) instead of leaving
+  // a zombie burning CPU behind the next job.
+  #withTimeout(promise, controller) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("the companion took too long — try again")),
-        this.#timeoutMs,
-      );
+      const timer = setTimeout(() => {
+        controller?.abort();
+        reject(new Error("the companion took too long — try again"));
+      }, this.#timeoutMs);
       promise.then(
         (value) => {
           clearTimeout(timer);

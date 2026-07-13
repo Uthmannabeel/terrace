@@ -15,22 +15,27 @@ const app = spawn(
   { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] },
 );
 app.stderr.on("data", (d) => process.stderr.write(`  ${d}`));
+process.on("exit", () => app.kill()); // never orphan the app instance on its fixed port
 
 function fail(msg) {
   console.error(`VERIFY-LOBBY FAILED: ${msg}`);
-  app.kill();
   process.exit(1);
 }
 setTimeout(() => fail("timed out"), 60_000);
 await new Promise((r) => setTimeout(r, 2500));
 
-for (const asset of ["/", "/app.js", "/styles.css", "/fonts/archivo-var.woff2", "/fonts/martian-mono-var.woff2"]) {
-  const res = await fetch(`http://127.0.0.1:${PORT}${asset}`);
-  if (!res.ok) fail(`${asset} → ${res.status}`);
+try {
+  for (const asset of ["/", "/app.js", "/styles.css", "/fonts/archivo-var.woff2", "/fonts/martian-mono-var.woff2"]) {
+    const res = await fetch(`http://127.0.0.1:${PORT}${asset}`);
+    if (!res.ok) fail(`${asset} → ${res.status}`);
+  }
+} catch (err) {
+  fail(`asset fetch: ${err.message}`);
 }
 console.log("[verify-lobby] all assets serve 200");
 
 const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
+ws.on("error", (e) => fail(`ws: ${e.message}`));
 const events = [];
 ws.on("message", (raw) => events.push(JSON.parse(raw.toString())));
 await new Promise((r) => ws.on("open", r));

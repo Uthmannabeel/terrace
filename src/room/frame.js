@@ -1,6 +1,6 @@
 // Newline-delimited JSON framing over a peer socket. Peers are untrusted:
-// the accumulator is capped so a peer that never sends a newline cannot
-// grow memory without bound.
+// the accumulator is capped (in UTF-16 code units) so a peer that never sends
+// a newline cannot grow memory without bound.
 
 import { StringDecoder } from "node:string_decoder";
 import { MAX_RAW_LENGTH } from "../protocol/envelope.js";
@@ -10,12 +10,13 @@ const MAX_BUFFER = MAX_RAW_LENGTH * 4;
 export function createLineSplitter(onLine, onOverflow) {
   // StringDecoder holds partial multi-byte sequences across TCP chunk
   // boundaries — chunk.toString() would garble "¡Golazo!" split mid-character.
-  const decoder = new StringDecoder("utf8");
+  let decoder = new StringDecoder("utf8");
   let buffer = "";
   return function push(chunk) {
     buffer += decoder.write(chunk);
     if (buffer.length > MAX_BUFFER) {
       buffer = "";
+      decoder = new StringDecoder("utf8"); // drop retained partial-byte state too
       onOverflow?.();
       return;
     }

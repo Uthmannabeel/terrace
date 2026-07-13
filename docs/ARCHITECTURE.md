@@ -62,8 +62,11 @@ the stand can show who's in without re-announcing to everyone already there.
 ## Trust boundaries
 
 1. **Peers are hostile.** Everything crossing a Hyperswarm socket is size-capped,
-   schema-checked, and rebuilt before use. Transport is Noise-encrypted by
-   Hyperswarm itself.
+   schema-checked, and rebuilt before use. A per-peer token bucket caps the
+   message rate so one peer can't flood the room, and each remote message
+   carries a short fingerprint of the sender's peer key so a display name can't
+   be impersonated undetectably. Transport is Noise-encrypted by Hyperswarm
+   itself.
 2. **The UI is local.** HTTP + ws bind to 127.0.0.1; the page is plumbing for one
    device, not a service.
 3. **The model is local.** Prompts and chat context never leave the machine —
@@ -79,7 +82,7 @@ the stand can show who's in without re-announcing to everyone already there.
 - **ndjson over the raw duplex stream.** Simplest framing that survives partial
   chunks; a versioned envelope leaves room to grow (match events, reactions)
   without breaking old peers.
-- **Injectable QVAC client.** 44 tests run without the SDK; `npm run verify:ai`
+- **Injectable QVAC client.** 47 tests run without the SDK; `npm run verify:ai`
   proves the real model path.
 
 ## Offline / restricted-network story

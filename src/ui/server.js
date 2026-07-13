@@ -66,6 +66,12 @@ export async function startUiServer({ port, onClientMessage }) {
 
   wss.on("connection", (socket) => {
     clients.add(socket);
+    // reply() answers just the requesting tab; broadcast() reaches every tab on
+    // this device. Handlers pick per event — a join-error belongs to one tab, a
+    // new chat to all of them.
+    const reply = (event) => {
+      if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(event));
+    };
     socket.on("close", () => clients.delete(socket));
     socket.on("message", (raw) => {
       let data;
@@ -74,11 +80,11 @@ export async function startUiServer({ port, onClientMessage }) {
       } catch {
         return; // ignore malformed frames from the page
       }
-      if (data && typeof data === "object") onClientMessage(data, send);
+      if (data && typeof data === "object") onClientMessage(data, reply);
     });
   });
 
-  function send(event) {
+  function broadcast(event) {
     const raw = JSON.stringify(event);
     for (const socket of clients) {
       if (socket.readyState === socket.OPEN) socket.send(raw);
@@ -93,5 +99,13 @@ export async function startUiServer({ port, onClientMessage }) {
   const boundPort = server.address().port;
   for (const host of ["127.0.0.1", "localhost", "[::1]"]) allowedHosts.add(`${host}:${boundPort}`);
 
-  return { send, port: boundPort, close: () => server.close() };
+  return {
+    broadcast,
+    port: boundPort,
+    close: () => {
+      for (const socket of clients) socket.terminate();
+      wss.close();
+      server.close();
+    },
+  };
 }

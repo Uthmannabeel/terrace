@@ -48,6 +48,7 @@ $("room-code").addEventListener("click", () => {
 });
 
 // ── websocket to the local app process ────────────────────────
+const RECONNECT_DELAY_MS = 1500;
 let ws;
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws`);
@@ -61,7 +62,7 @@ function connect() {
     }
     handle(ev);
   });
-  ws.addEventListener("close", () => setTimeout(connect, 1500));
+  ws.addEventListener("close", () => setTimeout(connect, RECONNECT_DELAY_MS));
 }
 connect();
 
@@ -161,13 +162,20 @@ function showFeed() {
   if (empty && !empty.hidden) empty.hidden = true;
 }
 const MAX_RENDERED = 300;
+let stickPending = false;
 function stick() {
-  // a peer flooding valid messages must not grow the DOM without bound
-  while (feedEl.children.length > MAX_RENDERED) feedEl.removeChild(feedEl.firstElementChild);
-  feedEl.scrollTop = feedEl.scrollHeight;
+  // batch trim + scroll into one frame: a 200-message replay on tab open (or a
+  // peer flood) collapses to a single reflow instead of one per message
+  if (stickPending) return;
+  stickPending = true;
+  requestAnimationFrame(() => {
+    stickPending = false;
+    while (feedEl.children.length > MAX_RENDERED) feedEl.removeChild(feedEl.firstElementChild);
+    feedEl.scrollTop = feedEl.scrollHeight;
+  });
 }
 
-function renderChat({ id, name, text, self }) {
+function renderChat({ id, name, text, self, tag }) {
   showFeed();
   const grouped = lastAuthor === name;
   lastAuthor = name;
@@ -180,6 +188,13 @@ function renderChat({ id, name, text, self }) {
   who.className = "msg-name";
   who.textContent = name;
   who.style.color = self ? "var(--ink)" : nameColor(name);
+  if (tag) {
+    // fingerprint of the sender's peer key — makes name impersonation visible
+    const fp = document.createElement("span");
+    fp.className = "msg-fp";
+    fp.textContent = ` #${tag}`;
+    who.appendChild(fp);
+  }
 
   const body = document.createElement("span");
   body.className = "msg-text";
@@ -194,6 +209,7 @@ function renderChat({ id, name, text, self }) {
     btn.textContent = "TRANSLATE";
     btn.disabled = !aiReady;
     btn.addEventListener("click", () => {
+      if (ws.readyState !== WebSocket.OPEN) return; // don't strand the button on "…"
       btn.textContent = "…";
       btn.disabled = true;
       ws.send(JSON.stringify({ type: "translate", id }));

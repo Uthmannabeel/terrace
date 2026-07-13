@@ -12,8 +12,10 @@ export function createFeed(startId = 1) {
   return { nextId: startId, entries: [] };
 }
 
-export function addEntry(feed, { name, text, self }) {
-  const entry = { id: feed.nextId, name, text, self: Boolean(self) };
+export function addEntry(feed, { name, text, self, tag = null }) {
+  // tag = a short fingerprint of the sender's peer key, so a peer can't
+  // impersonate another fan's name undetectably (null for your own messages).
+  const entry = { id: feed.nextId, name, text, self: Boolean(self), tag };
   const entries = [...feed.entries, entry].slice(-MAX_FEED);
   return { feed: { nextId: feed.nextId + 1, entries }, entry };
 }

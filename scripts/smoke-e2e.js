@@ -36,9 +36,14 @@ function waitForLine(child, needle, timeoutMs = 30_000) {
   });
 }
 
+// Backstop: whatever path we exit by (throw, error event, success), never leave
+// child app/DHT processes holding their fixed ports and breaking the next run.
+process.on("exit", () => {
+  for (const c of children) c.kill();
+});
+
 function fail(err) {
   console.error(`SMOKE FAILED: ${err.message}`);
-  for (const c of children) c.kill();
   process.exit(1);
 }
 
@@ -64,6 +69,8 @@ try {
   // two "browsers"
   const wsA = new WebSocket("ws://127.0.0.1:3651/ws");
   const wsB = new WebSocket("ws://127.0.0.1:3652/ws");
+  wsA.on("error", (e) => fail(new Error(`wsA: ${e.message}`)));
+  wsB.on("error", (e) => fail(new Error(`wsB: ${e.message}`)));
   const received = new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("Bob never saw Alice's chat")), 30_000);
     wsB.on("message", (raw) => {

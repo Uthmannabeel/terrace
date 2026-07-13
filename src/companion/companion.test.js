@@ -119,4 +119,23 @@ describe("Companion jobs", () => {
     await expect(first).rejects.toThrow(/took too long/i);
     await expect(second).resolves.toBe("second answer");
   });
+
+  test("a timed-out job aborts its signal so the client can stop generating", async () => {
+    let aborted = false;
+    const companion = new Companion({
+      runCompletion: (_history, signal) =>
+        new Promise((resolve) => {
+          signal.addEventListener("abort", () => {
+            aborted = true;
+            resolve("stopped");
+          });
+        }),
+      loadClient: async () => {},
+      timeoutMs: 30,
+    });
+    await companion.warmup();
+
+    await expect(companion.explain("stalls")).rejects.toThrow(/took too long/i);
+    expect(aborted).toBe(true);
+  });
 });

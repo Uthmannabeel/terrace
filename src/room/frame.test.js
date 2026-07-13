@@ -53,4 +53,19 @@ describe("createLineSplitter", () => {
     push(Buffer.from("ok\n"));
     expect(lines).toEqual(["ok"]);
   });
+
+  test("resets decoder state on overflow so a later multi-byte char isn't garbled", () => {
+    const lines = [];
+    const onOverflow = vi.fn();
+    const push = createLineSplitter((l) => lines.push(l), onOverflow);
+
+    // overflow while a multi-byte char is half-delivered
+    const half = Buffer.from("¡", "utf8").subarray(0, 1);
+    push(Buffer.concat([Buffer.from("x".repeat(MAX_RAW_LENGTH * 4 + 1)), half]));
+    expect(onOverflow).toHaveBeenCalledOnce();
+
+    // a fresh complete char after the reset must decode cleanly
+    push(Buffer.from("¡Gol!\n", "utf8"));
+    expect(lines).toEqual(["¡Gol!"]);
+  });
 });

@@ -16,12 +16,20 @@ const bail = setTimeout(() => {
   process.exit(1);
 }, 45_000);
 
+// Exit cleanly, but never hang the (vitest-owned) process if leave() stalls —
+// use finally, and a hard fallback so a wedged swarm still exits fast.
+function done(code = 0) {
+  clearTimeout(bail);
+  const hard = setTimeout(() => process.exit(code), 3000);
+  session.leave().finally(() => {
+    clearTimeout(hard);
+    process.exit(code);
+  });
+}
+
 session.on("message", (message) => {
   console.log(`RECEIVED:${JSON.stringify(message)}`);
-  if (mode === "listen") {
-    clearTimeout(bail);
-    session.leave().then(() => process.exit(0));
-  }
+  if (mode === "listen") done(0);
 });
 
 session.on("peer-join", async () => {
@@ -32,10 +40,7 @@ session.on("peer-join", async () => {
     session.broadcast({ v: 999, kind: "chat", name: "x", text: "bad version" });
   }
   session.broadcast(makeChat({ name, text: `hello from ${name}` }));
-  setTimeout(() => {
-    clearTimeout(bail);
-    session.leave().then(() => process.exit(0));
-  }, 4000);
+  setTimeout(() => done(0), 4000);
 });
 
 await session.join();

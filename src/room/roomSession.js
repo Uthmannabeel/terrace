@@ -12,6 +12,12 @@ import { roomCodeToTopic, normalizeRoomCode } from "./code.js";
 import { encodeMessage, parseMessage } from "../protocol/envelope.js";
 import { createLineSplitter } from "./frame.js";
 
+// Per-peer token bucket: generous for a human typing, but caps a hostile peer
+// that streams valid frames at line rate from saturating the event loop or
+// scrolling the whole stand out of view. Refills RATE_PER_SEC/sec up to RATE_BURST.
+const RATE_PER_SEC = 20;
+const RATE_BURST = 40;
+
 export class RoomSession extends EventEmitter {
   #swarm;
   #peers = new Map(); // peerId -> socket
@@ -60,8 +66,15 @@ export class RoomSession extends EventEmitter {
     this.#peers.set(peerId, socket);
     this.emit("peer-join", peerId);
 
+    let tokens = RATE_BURST;
+    let lastRefill = Date.now();
     const push = createLineSplitter(
       (line) => {
+        const now = Date.now();
+        tokens = Math.min(RATE_BURST, tokens + ((now - lastRefill) / 1000) * RATE_PER_SEC);
+        lastRefill = now;
+        if (tokens < 1) return; // over budget — drop this frame silently
+        tokens -= 1;
         const parsed = parseMessage(line);
         if (parsed.ok) this.emit("message", parsed.message, peerId);
       },
